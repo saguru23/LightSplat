@@ -96,7 +96,7 @@ if __name__ == "__main__":
         wandb.init(
             project=config["project_name"],
             config=config,
-            dir="/home/yli3/scratch/outputs/slam/wandb",
+            dir="/home/slam/scratch/outputs/slam/wandb",
             group=config["data"]["scene_name"]
             if not args.group_name
             else args.group_name,

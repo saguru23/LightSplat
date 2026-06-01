@@ -2,5 +2,5 @@
 	path = thirdparty/Hierarchical-Localization
 	url = https://github.com/cvg/Hierarchical-Localization.git
 [submodule "thirdparty/LightGlue"]
-    path = thirdparty/LightGlue
-    url = https://github.com/cvg/LightGlue.git
+	path = thirdparty/LightGlue
+	url = https://github.com/cvg/LightGlue.git

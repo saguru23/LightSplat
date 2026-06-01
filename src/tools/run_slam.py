@@ -5,7 +5,7 @@ import time
 
 from src.utils.io_utils import load_config
 from src.entities.datasets import get_dataset, BaseDataset
-from src.entities.visualizer import LoopSplatViewer
+from src.entities.visualizer import LightViewer
 from src.tools.slam import lightglueSLAM
 
 def PreloadDataset(dataset):
@@ -41,7 +41,7 @@ def main():
     # dataset = PreloadDataset(dataset)
     
     slam = lightglueSLAM(config["light"], dataset)
-    viewer = LoopSplatViewer()
+    viewer = LightViewer()
     
     estimated_c2ws = np.zeros((len(dataset), 4, 4), dtype=np.float64)
     is_keyframe = np.full(len(dataset), False, dtype=bool)

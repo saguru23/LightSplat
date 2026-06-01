@@ -28,7 +28,7 @@ from src.utils.vis_utils import *  # noqa - needed for debugging
 from src.utils.tracker_utils import compute_camera_opt_params
 
 import rospy
-from src.entities.visualizer import LoopSplatViewer
+from src.entities.visualizer import LightViewer
 from src.tools.lgVO import lightglueVO
 from src.tools.slam import lightglueSLAM
 from src.tools.run_slam import PreloadDataset
@@ -264,7 +264,7 @@ class GaussianSLAM(object):
         gaussian_model = GaussianModel(0)
         gaussian_model.training_setup(self.opt)
         self.submap_id = 0# 初始化编号0
-        viewer = LoopSplatViewer()
+        viewer = LightViewer()
 
         total_compute_time = 0.0
         total_frames = 0

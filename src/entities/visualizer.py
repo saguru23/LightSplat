@@ -4,7 +4,7 @@ import torch
 import threading, time
 
 
-class LoopSplatViewer:
+class LightViewer:
     def __init__(self, curr_axis_size=0.06, line_width=3.0, kf_size=0.03):
         self.pts = []
         self.full_c2ws = []   # 保存完整的最新轨迹位姿
