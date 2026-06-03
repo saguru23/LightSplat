@@ -52,14 +52,14 @@ class lightglueVO():
         return q1,q2
     
     # ------------------------------------------------------------------
-    #  PnP/ICP 位姿求解
+    #  PnP/ICP pose estimation.
     # ------------------------------------------------------------------
 
     def get_pose(self, q1, q2):
         H, W = self.d0.shape[:2]
         fx, fy, cx, cy = self.dataset.fx, self.dataset.fy, self.dataset.cx, self.dataset.cy
         
-        # --- 2D-3D：用单帧深度反投影 ---
+        # --- 2D-3D: back-project with single-frame depth. ---
         u0 = np.clip(np.round(q1[:, 0]).astype(int), 0, W - 1)
         v0 = np.clip(np.round(q1[:, 1]).astype(int), 0, H - 1)
         z0 = self.d0[v0, u0].astype(np.float32)
@@ -75,7 +75,7 @@ class lightglueVO():
         q2v = q2[valid_3d].astype(np.float32)
         z0v = z0[valid_3d]
 
-        # 反投影到相机坐标系
+        # Back-project to camera coordinates.
         X1 = np.column_stack([
             (q1v[:, 0] - cx) / fx * z0v,
             (q1v[:, 1] - cy) / fy * z0v,
@@ -89,9 +89,9 @@ class lightglueVO():
                 q2v,                    # 2D image points
                 self.K,                 # Camera matrix
                 None,                   # distCoeffs
-                iterationsCount=100,    # RANSAC 迭代次数
-                reprojectionError=4.0,  # 重投影误差阈值 (像素)
-                flags=cv2.SOLVEPNP_EPNP # 使用 EPNP 算法
+                iterationsCount=100,    # RANSAC iterations.
+                reprojectionError=4.0,  # Reprojection threshold in pixels.
+                flags=cv2.SOLVEPNP_EPNP # Use EPNP.
             )
 
             if not success or inliers is None or len(inliers) < 6:
@@ -103,10 +103,10 @@ class lightglueVO():
                 q2v[inliers.flatten()], 
                 self.K, 
                 None,
-                rvec=rvec,    # 使用 RANSAC 的解作为初始猜测
+                rvec=rvec,    # Use the RANSAC estimate as initialization.
                 tvec=tvec,
                 useExtrinsicGuess=True, 
-                flags=cv2.SOLVEPNP_ITERATIVE # 使用非线性迭代优化
+                flags=cv2.SOLVEPNP_ITERATIVE # Use iterative refinement.
             )
             
             if not success:
@@ -127,7 +127,7 @@ class lightglueVO():
             return None, False
         
     # ------------------------------------------------------------------
-    #  VO 主函数
+    #  VO main function.
     # ------------------------------------------------------------------
     
     def update_keyframe(self, num_matches):
@@ -160,7 +160,7 @@ class lightglueVO():
             MAX_ANGLE_THRESH = np.deg2rad(15.0)
             
             if dist > MAX_DIST_THRESH or angle > MAX_ANGLE_THRESH:
-                print(f"LightGlue (丢失): Dist={dist:.2f}m, Angle={np.rad2deg(angle):.1f}deg")
+                print(f"LightGlue (lost): Dist={dist:.2f}m, Angle={np.rad2deg(angle):.1f}deg")
                 transf = transf_rel
                 is_ok = False
 
@@ -205,7 +205,7 @@ class lightglue_Registration():
         H, W = depth0.shape[:2]
         fx, fy, cx, cy = self.dataset.fx, self.dataset.fy, self.dataset.cx, self.dataset.cy
         
-        # --- 3D-3D：用两帧深度反投影 ---
+        # --- 3D-3D: back-project with two-frame depth. ---
         u0 = np.clip(np.round(q1[:, 0]).astype(int), 0, W - 1)
         v0 = np.clip(np.round(q1[:, 1]).astype(int), 0, H - 1)
         z0 = depth0[v0, u0].astype(np.float32)
@@ -227,7 +227,7 @@ class lightglue_Registration():
         z0v = z0[valid_3d3d]
         z1v = z1[valid_3d3d]
 
-        # 反投影到相机坐标系
+        # Back-project to camera coordinates.
         X1 = np.column_stack([
             (q1v[:, 0] - cx) / fx * z0v,
             (q1v[:, 1] - cy) / fy * z0v,
@@ -240,7 +240,7 @@ class lightglue_Registration():
             z1v
         ]).astype(np.float64)
 
-        # 去均值 + SVD (Umeyama / Horn)
+        # Mean-center + SVD (Umeyama / Horn).
         mu1 = X1.mean(axis=0)
         mu2 = X2.mean(axis=0)
         X1c = X1 - mu1
@@ -259,7 +259,7 @@ class lightglue_Registration():
             print(f"SVD failed: {e}.")
             return None, False, {"valid_num": valid_num}
 
-        # MAD 自适应阈值
+        # MAD adaptive threshold.
         errs = np.linalg.norm(X2 - (X1 @ R.T + t), axis=1)
         med = np.median(errs)
         mad = 1.4826 * np.median(np.abs(errs - med)) + 1e-6

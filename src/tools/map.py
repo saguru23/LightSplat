@@ -16,7 +16,7 @@ class KeyFrame:
         self.pose_c2w = pose_c2w
         self.features = features
         
-        # 此KF观测到的 MapPoint ID 字典 
+        # MapPoint IDs observed by this keyframe.
         self.mappoint_ids: dict[int, int] = {}
 
     def add_mappoint_observation(self, feat_idx: int, mp_id: int):
@@ -32,7 +32,7 @@ class MapPoint:
         self.position = position.astype(np.float64)
         self.descriptor = descriptor.astype(np.float32)
         
-        # 观测到此点的 KeyFrame ID 集合
+        # KeyFrame IDs that observe this point.
         self.observed_by_kfs: set[int] = set() 
 
     def add_observation(self, kf_id: int):
@@ -58,7 +58,7 @@ class Mapper:
         self.local_map_radius = 10.0
 
     # ------------------------------------------------------------------
-    #  Mapper 工具函数
+    #  Mapper helpers.
     # ------------------------------------------------------------------
 
     def sliding_window_culling(self):
@@ -71,7 +71,7 @@ class Mapper:
                 if mp_id in self.mappoints:
                     mp = self.mappoints[mp_id]
                     mp.remove_observation(oldest_frame_id)
-                    if len(mp.observed_by_kfs) == 0:  # 没有其他帧观测，标记为待删除
+                    if len(mp.observed_by_kfs) == 0:  # Delete if no other frame observes it.
                         points_to_delete.add(mp_id)
             
             for mp_id in points_to_delete:
@@ -85,7 +85,7 @@ class Mapper:
         if not self.mappoints:
             return None
 
-        # 直接提取滑窗内所有地图点
+        # Use all map points in the sliding window.
         all_mps = list(self.mappoints.values())
         res_positions = np.array([mp.position for mp in all_mps], dtype=np.float64)
         res_descriptors = np.array([mp.descriptor for mp in all_mps], dtype=np.float32)
@@ -98,7 +98,7 @@ class Mapper:
         }
 
     def create_new_mappoints(self, kf: KeyFrame):
-        # 1. 数据准备与反投影
+        # 1. Prepare data and back-project points.
         _, _, depth, _ = self.dataset[kf.frame_id]
         H, W = depth.shape
         pts, descs = kf.features['keypoints'], kf.features['descriptors']
@@ -110,7 +110,7 @@ class Mapper:
         z = np.zeros_like(u)
         z[mask] = depth[v_i[mask], u_i[mask]]
         valid = mask & (z > 0.1) & np.isfinite(z)
-        idxs = np.where(valid)[0] # 有效特征点索引
+        idxs = np.where(valid)[0] # Valid feature indices.
         
         if len(idxs) == 0: return
 
@@ -120,7 +120,7 @@ class Mapper:
         P_cam = np.stack((x, y, z[valid], np.ones_like(x)), axis=1)
         P_w = (kf.pose_c2w @ P_cam.T).T[:, :3]
 
-        # 2. 维护旧观测 & 准备局部地图
+        # 2. Maintain old observations and prepare the local map.
         is_linked = np.array([i in kf.mappoint_ids for i in idxs])
         for i in idxs[is_linked]:
             mp = self.mappoints.get(kf.mappoint_ids[i])
@@ -131,12 +131,12 @@ class Mapper:
         unlinked = np.where(~is_linked)[0]
         matched = np.zeros(len(unlinked), dtype=bool)
 
-        # 3. 批量匹配 (Vectorized Matching)
+        # 3. Batch matching.
         if len(unlinked) > 0 and local_map and len(local_map['positions']) > 0:
             P_q, D_q = P_w[unlinked], descs[idxs[unlinked]]
             map_pos, map_descs, map_ids = local_map['positions'], local_map['descriptors'], local_map['ids']
             
-            # 批量半径搜索
+            # Batch radius search.
             neighbors = cKDTree(map_pos).query_ball_point(P_q, r=0.05)
             lens = [len(n) for n in neighbors]
             
@@ -144,13 +144,13 @@ class Mapper:
                 q_flat = np.repeat(np.arange(len(P_q)), lens)
                 m_flat = np.concatenate(neighbors).astype(int)
                 
-                # 矩阵计算相似度 & 筛选
+                # Compute and filter similarities.
                 sims = np.einsum('ij,ij->i', D_q[q_flat], map_descs[m_flat])
                 valid_s = sims > 0.85
                 
                 if np.any(valid_s):
                     vq, vm, vs = q_flat[valid_s], m_flat[valid_s], sims[valid_s]
-                    # 分组择优: 按sim降序排，unique取第一个
+                    # Keep the best match per query.
                     order = np.lexsort((-vs, vq))
                     vq_s, vm_s = vq[order], vm[order]
                     _, u_idx = np.unique(vq_s, return_index=True)
@@ -163,7 +163,7 @@ class Mapper:
                             kf.add_mappoint_observation(orig_sub[q_i], mp.id)
                             matched[q_i] = True
 
-        # 4. 批量新建
+        # 4. Create new points.
         new_mpts = unlinked[~matched]
         count_new_mpts = len(new_mpts)
         if count_new_mpts > 0:
@@ -174,7 +174,7 @@ class Mapper:
                 self.mappoints[mp.id] = mp
                 kf.add_mappoint_observation(oid, mp.id)
 
-        print(f"[Mapper] KeyFrame {kf.frame_id}: 新建 {count_new_mpts} 个地图点.")
+        print(f"[Mapper] KeyFrame {kf.frame_id}: created {count_new_mpts} map points.")
 
     def recent_mappoints_culling(self, kf: KeyFrame):
         pass
@@ -183,7 +183,7 @@ class Mapper:
         pass
     
     # ------------------------------------------------------------------
-    #  Mapper 局部BA
+    #  Mapper local BA.
     # ------------------------------------------------------------------
 
     def needs_local_ba(self, kf: KeyFrame) -> bool:
@@ -198,20 +198,20 @@ class Mapper:
         mps = list(self.mappoints.values())
         if len(kfs) < 2 or not mps: return {}
 
-        # 1. 构建观测边 (Index Mapping)
+        # 1. Build observation edges.
         mp_map = {mp.id: i for i, mp in enumerate(mps)}
         edges = [[i, mp_map[mid], *kf.features['keypoints'][fid]] 
                  for i, kf in enumerate(kfs) 
                  for fid, mid in kf.mappoint_ids.items() if mid in mp_map]
         if not edges: return {}
 
-        device = "cpu" # 强制 CPU
+        device = "cpu" # Force CPU.
         T = torch.tensor(edges, dtype=torch.float64, device=device)
         cam_idx, pt_idx, uv_gt = T[:, 0].long(), T[:, 1].long(), T[:, 2:]
         K = torch.tensor([self.dataset.fx, self.dataset.fy, self.dataset.cx, self.dataset.cy], 
                          dtype=torch.float64, device=device)
 
-        # 2. 初始化变量 (Vectorized)
+        # 2. Initialize variables.
         se3_list = []
         for kf in kfs:
             w2c = np.linalg.inv(kf.pose_c2w)
@@ -223,14 +223,14 @@ class Mapper:
         xyz = torch.tensor(np.array([mp.position for mp in mps]), 
                            dtype=torch.float64, device=device, requires_grad=True)
 
-        # 3. 优化 (Matrix Operation)
+        # 3. Optimize.
         optimizer = optim.LBFGS([active, xyz], lr=1.0, max_iter=20, line_search_fn="strong_wolfe")
 
         def closure():
             optimizer.zero_grad()
             poses = torch.cat([fixed, active]) # (N_frames, 6)
             
-            # 批量 Rodrigues
+            # Batch Rodrigues.
             r, t = poses[:, :3], poses[:, 3:]
             theta = torch.norm(r, dim=1, keepdim=True) + 1e-8
             k = r / theta
@@ -240,7 +240,7 @@ class Mapper:
             Rs = torch.eye(3, dtype=torch.float64, device=device) + \
                  torch.sin(theta).unsqueeze(2)*K_x + (1-torch.cos(theta).unsqueeze(2))*(K_x@K_x)
             
-            # 广播与投影 P = R @ X + t
+            # Broadcast and project: P = R @ X + t.
             P = (Rs[cam_idx] @ xyz[pt_idx].unsqueeze(2)).squeeze(2) + t[cam_idx]
             z = torch.clamp(P[:, 2:3], min=1e-5)
             uv_pred = P[:, :2] / z * K[:2] + K[2:]
@@ -252,7 +252,7 @@ class Mapper:
         try: optimizer.step(closure)
         except: return {}
 
-        # 4. 回写结果
+        # 4. Write back results.
         optimized_poses = {}
         opt_poses = active.detach().numpy()
         for i, kf in enumerate(kfs[1:]):
@@ -265,11 +265,11 @@ class Mapper:
         for i, mp in enumerate(mps):
             mp.position = opt_pts[i]
 
-        print(f"[Mapper] 局部 BA 完成: 耗时 {(time.time()-t0)*1000:.1f} ms")
+        print(f"[Mapper] Local BA done in {(time.time()-t0)*1000:.1f} ms")
         return optimized_poses
 
     # ------------------------------------------------------------------
-    #  Mapper 主函数 
+    #  Mapper main function.
     # ------------------------------------------------------------------
 
     def map(self):
@@ -280,32 +280,32 @@ class Mapper:
             start_time = time.time()
             current_kf = self.keyframe_buffer.popleft()
             
-            # 提取关键帧
+            # Fetch keyframe.
             if current_kf.frame_id in self.keyframes:
-                print(f"[Mapper] 重复处理 {current_kf.frame_id}，跳过。")
+                print(f"[Mapper] KeyFrame {current_kf.frame_id} already processed, skipping.")
                 continue
             else:
                 self.keyframes[current_kf.frame_id] = current_kf
             
-            # 剔除冗余地图点
+            # Cull redundant map points.
             self.recent_mappoints_culling(current_kf) 
             
-            # 添加新地图点
+            # Add new map points.
             self.create_new_mappoints(current_kf)
             
-            # 局部 BA
+            # Local BA.
             if self.needs_local_ba(current_kf):
                 optimized_poses = self.local_bundle_adjustment() 
                 optimized_poses_dict.update(optimized_poses)
             
-            # 剔除冗余关键帧
+            # Cull redundant keyframes.
             self.local_keyframes_culling(current_kf) 
 
-            # 滑动窗口
+            # Sliding window.
             self.sliding_window_culling()
 
             end_time = time.time()
-            print(f"[Mapper] 建图帧 {current_kf.frame_id} 处理完毕，耗时: {(end_time-start_time)*1000:.1f} ms")
+            print(f"[Mapper] Mapping frame {current_kf.frame_id} done in {(end_time-start_time)*1000:.1f} ms")
 
         return optimized_poses_dict
         

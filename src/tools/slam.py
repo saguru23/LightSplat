@@ -29,7 +29,7 @@ class lightglueSLAM:
             optimized_poses_dict = self.mapper.map()
         
         end_time = time.time()
-        print(f"总耗时 {(end_time-start_time)*1000:.1f} ms\n")
+        print(f"Total time {(end_time-start_time)*1000:.1f} ms\n")
 
         return estimated_c2w, _is_keyframe, optimized_poses_dict
     

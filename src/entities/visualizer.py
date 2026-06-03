@@ -7,8 +7,8 @@ import threading, time
 class LightViewer:
     def __init__(self, curr_axis_size=0.06, line_width=3.0, kf_size=0.03):
         self.pts = []
-        self.full_c2ws = []   # 保存完整的最新轨迹位姿
-        self.kf_indices = []  # 核心修改：只存关键帧的索引，不存绝对位姿
+        self.full_c2ws = []   # Latest full trajectory poses.
+        self.kf_indices = []  # Store keyframe indices, not absolute poses.
         self._dirty = False
         self._last_c2w = None
         
@@ -78,7 +78,7 @@ class LightViewer:
     def _render_loop(self):
         o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Error)
         vis = o3d.visualization.Visualizer()
-        # 将默认窗口调小
+        # Use a smaller default window.
         vis.create_window(window_name="Trajectory & Keyframes", width=1100, height=700)
         opt = vis.get_render_option()
         
@@ -96,9 +96,9 @@ class LightViewer:
                     if self.pts:
                         pts = np.vstack(self.pts).astype(np.float64)
                     
-                    # 动态获取关键帧的最新位姿
+                    # Fetch the latest keyframe poses.
                     if self.full_c2ws is not None and self.kf_indices:
-                        # 确保索引不越界
+                        # Guard against out-of-range indices.
                         valid_indices = [idx for idx in self.kf_indices if idx < len(self.full_c2ws)]
                         kf_c2ws_copy = [self.full_c2ws[idx] for idx in valid_indices]
                     
@@ -149,13 +149,13 @@ class LightViewer:
     def update(self, c2ws, is_keyframe=False):
         c2ws = c2ws.detach().cpu().numpy() if hasattr(c2ws, "detach") else np.asarray(c2ws)
         with self._lock:
-            self.full_c2ws = c2ws  # 保存完整的轨迹
+            self.full_c2ws = c2ws  # Store the full trajectory.
             self.pts = [p[:3, 3].reshape(1, 3) for p in c2ws]
             self._last_c2w = c2ws[-1]
             
             if is_keyframe:
                 current_idx = len(c2ws) - 1
-                # 防止同一帧被重复添加为关键帧
+                # Avoid adding the same frame twice.
                 if not self.kf_indices or self.kf_indices[-1] != current_idx:
                     self.kf_indices.append(current_idx)
                     

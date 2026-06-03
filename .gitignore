@@ -1,6 +1,8 @@
 *.pyc
 .vscode
 output
+outputs
+scripts/output
 build
 diff_rasterization/diff_rast.egg-info
 diff_rasterization/dist
@@ -9,3 +11,5 @@ screenshots
 debug
 wandb
 data
+configs/*/
+thirdparty/*/

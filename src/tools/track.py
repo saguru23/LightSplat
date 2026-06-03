@@ -21,23 +21,23 @@ class Tracker:
         self.odometer = lgVO
         self.map = current_map
         
-        # 当前帧位姿 
+        # Current frame pose.
         self.current_c2w = np.eye(4)
         self.last_keyframe_c2w = np.eye(4)
         
-        # 当前帧数据 
-        self.current_frame_features = None # 包含 'keypoints', 'descriptors'
+        # Current frame data.
+        self.current_frame_features = None # Contains 'keypoints' and 'descriptors'.
         self.current_frame_image = None
         self.current_frame_depth = None
         self.current_gt_pose = np.eye(4)
         
-        self.min_keyframe_dist = config["min_keyframe_dist"] # 平移阈值
-        self.min_keyframe_angle = np.deg2rad(config["min_keyframe_angle"]) # 旋转阈值
+        self.min_keyframe_dist = config["min_keyframe_dist"] # Translation threshold.
+        self.min_keyframe_angle = np.deg2rad(config["min_keyframe_angle"]) # Rotation threshold.
         self.num_tracked_mappoints = 0
         self.valid_matches_dict = {}
 
     # ------------------------------------------------------------------
-    #  Tracker 工具函数
+    #  Tracker helpers.
     # ------------------------------------------------------------------
 
     def _load_current_frame_data(self, frame_id):
@@ -72,7 +72,7 @@ class Tracker:
         MAX_ANGLE_THRESH = np.deg2rad(self.config["max_angle_thresh"])
         
         if dist > MAX_DIST_THRESH or angle > MAX_ANGLE_THRESH:
-            print(f"[Tracker] 新关键帧 (丢失): Dist={dist:.2f}m, Angle={np.rad2deg(angle):.1f}deg")
+            print(f"[Tracker] New keyframe (lost): Dist={dist:.2f}m, Angle={np.rad2deg(angle):.1f}deg")
             return False
         else:
             return True
@@ -84,10 +84,10 @@ class Tracker:
         angle = np.linalg.norm(R)
         
         if dist > self.min_keyframe_dist or angle > self.min_keyframe_angle:
-            print(f"[Tracker] 新关键帧 (运动): Dist={dist:.2f}m, Angle={np.rad2deg(angle):.1f}deg")
+            print(f"[Tracker] New keyframe (motion): Dist={dist:.2f}m, Angle={np.rad2deg(angle):.1f}deg")
             return True
         elif success and self.num_tracked_mappoints < 150:
-            print(f"[Tracker] 新关键帧 (稀疏): num_tracked_mappoints={self.num_tracked_mappoints}")
+            print(f"[Tracker] New keyframe (sparse): num_tracked_mappoints={self.num_tracked_mappoints}")
             return True
         else:
             return False
@@ -98,7 +98,7 @@ class Tracker:
             pose_c2w=self.current_c2w,
             features=self.current_frame_features,
         )
-        # 标记跟踪地图点
+        # Mark tracked map points.
         if self.valid_matches_dict:
             new_kf.mappoint_ids = self.valid_matches_dict.copy()
         self.map.insert_keyframe(new_kf)
@@ -109,15 +109,15 @@ class Tracker:
         return pose, is_ok
 
     # ------------------------------------------------------------------
-    #  Tracker 局部跟踪
+    #  Tracker local tracking.
     # ------------------------------------------------------------------
 
     def track_local_map(self) -> bool:
         
-        # 获取局部地图
+        # Fetch the local map.
         local_map = self.map.get_local_map(self.current_c2w)
         if local_map is None:
-            print("[Tracker] 无法获取局部地图.")
+            print("[Tracker] No local map.")
             self.num_tracked_mappoints = 0
             return False
 
@@ -126,14 +126,14 @@ class Tracker:
         mp_ids = local_map['ids']
 
         if len(mp_positions) < 80:
-            print(f"[Tracker] 局部地图点太少 ({len(mp_positions)}), 跳过.")
+            print(f"[Tracker] Too few local map points ({len(mp_positions)}), skipping.")
             self.num_tracked_mappoints = 0
             return False
 
         feat_positions   = self.current_frame_features['keypoints']
         feat_descriptors = self.current_frame_features['descriptors']
 
-        # 特征描述子 2D-3D 匹配
+        # Match feature descriptors for 2D-3D tracking.
         curr_w2c = np.linalg.inv(self.current_c2w)
         rvec, _ = cv2.Rodrigues(curr_w2c[:3, :3])
         tvec = curr_w2c[:3, 3]
@@ -162,7 +162,7 @@ class Tracker:
             final_selection = candidates_strict
         
         if len(final_selection) < 80:
-            print(f"[Tracker] PnP 局部匹配点不足 ({len(final_selection)}), 跳过.")
+            print(f"[Tracker] Too few local PnP matches ({len(final_selection)}), skipping.")
             self.num_tracked_mappoints = 0
             return False
 
@@ -170,7 +170,7 @@ class Tracker:
         image_points    = np.array([x[1] for x in final_selection], dtype=np.float32)
         temp_matches_indices = [x[2] for x in final_selection]
 
-        # PnP 求解 2D-3D 匹配
+        # Solve PnP from 2D-3D matches.
         try:
             success, rvec, tvec, inliers = cv2.solvePnPRansac(
                 localmap_points, 
@@ -230,18 +230,18 @@ class Tracker:
             return False
 
     # ------------------------------------------------------------------
-    #  Tracker 主函数
+    #  Tracker main function.
     #  
-    #  返回: 
-    #  - T_c2w: 最终估计的 c2w 位姿
-    #  - _is_keyframe: 是否触发关键帧
+    #  Returns:
+    #  - T_c2w: final estimated c2w pose.
+    #  - _is_keyframe: whether this frame is a keyframe.
     # ------------------------------------------------------------------
 
     def track(self, frame_id, pose_history: np.ndarray):
 
         start_time = time.time()
         
-        # 1. 加载数据
+        # 1. Load data.
         self._load_current_frame_data(frame_id)
 
         if frame_id in [0, 1]:
@@ -254,23 +254,23 @@ class Tracker:
         else:
             self.state = "TRACKING"
         
-        # 2. 初始位姿估计
+        # 2. Estimate the initial pose.
         self.current_c2w = self.initial_pose_estimation(frame_id, pose_history)
 
-        # 3. 跟踪局部地图
+        # 3. Track the local map.
         success = self.track_local_map()
         if not (success and self.tracking_threshold()): 
             self.current_c2w, success = self.lightglue_reloc(frame_id, pose_history)
             self.state = "LOST"
         
-        # 4. 决定新关键帧
+        # 4. Decide whether to add a keyframe.
         _is_keyframe = False
         if self.needs_new_keyframe(success):
             _is_keyframe = True
             self.create_new_keyframe(frame_id)
 
         end_time = time.time()
-        print(f"[Tracker] 跟踪帧 {frame_id} 处理完毕，耗时: {(end_time-start_time)*1000:.1f} ms")
-        print(f"[Tracker] 状态: {self.state}\n")
+        print(f"[Tracker] Frame {frame_id} done in {(end_time-start_time)*1000:.1f} ms")
+        print(f"[Tracker] State: {self.state}\n")
         
         return self.current_c2w, _is_keyframe

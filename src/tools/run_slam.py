@@ -17,7 +17,7 @@ def PreloadDataset(dataset):
             self.dataset = dataset
             self.cache = []
             
-            print(f"[System] 正在预加载 {len(dataset)} 帧数据到内存 (RAM)...")
+            print(f"[System] Preloading {len(dataset)} frames into RAM...")
             for i in range(len(dataset)):
                 data = dataset[i] 
                 self.cache.append(data)
@@ -28,7 +28,7 @@ def PreloadDataset(dataset):
         def __len__(self):
             return len(self.cache)
         
-        # 允许访问原始 dataset 的其他属性
+        # Forward other attributes to the original dataset.
         def __getattr__(self, name):
             return getattr(self.dataset, name)
         

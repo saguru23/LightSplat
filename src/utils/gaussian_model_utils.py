@@ -209,7 +209,7 @@ def build_scaling_rotation(s, r):
     L[:, 1, 1] = s[:, 1]
     L[:, 2, 2] = s[:, 2]
 
-    L = R @ L # 矩阵乘法
+    L = R @ L # Matrix multiply.
     return L
 
 

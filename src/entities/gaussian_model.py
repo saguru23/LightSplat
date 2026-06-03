@@ -41,8 +41,8 @@ class GaussianModel:
         self.max_sh_degree = sh_degree
         self.active_sh_degree = sh_degree  # temp
         self._xyz = torch.empty(0).cuda()
-        self._features_dc = torch.empty(0).cuda()# 球谐函数零阶分量，与RGB空间一一对应，为椭球基准颜色
-        self._features_rest = torch.empty(0).cuda()# 球谐函数高阶分量
+        self._features_dc = torch.empty(0).cuda()# SH DC term, aligned with RGB base color.
+        self._features_rest = torch.empty(0).cuda()# Higher-order SH terms.
         self._scaling = torch.empty(0).cuda()
         self._rotation = torch.empty(0, 4).cuda()
         self._opacity = torch.empty(0).cuda()
@@ -65,10 +65,10 @@ class GaussianModel:
             params_dict["scaling"],
             params_dict["rotation"])
 
-    def build_covariance_from_scaling_rotation(self, scaling, scaling_modifier, rotation):# 构建高斯椭球的协方差矩阵
-        L = build_scaling_rotation(scaling_modifier * scaling, rotation)# 旋转协方差矩阵，定义了主轴方向，L = RS
+    def build_covariance_from_scaling_rotation(self, scaling, scaling_modifier, rotation):# Build Gaussian covariance.
+        L = build_scaling_rotation(scaling_modifier * scaling, rotation)# Rotated covariance axes, L = RS.
         actual_covariance = L @ L.transpose(1, 2)# E = LL^T = RSS^TR^T
-        symm = strip_symmetric(actual_covariance)# 对称，只保存矩阵下三角
+        symm = strip_symmetric(actual_covariance)# Store lower triangle only.
         return symm
 
     def setup_functions(self):
@@ -76,9 +76,9 @@ class GaussianModel:
         self.scaling_inverse_activation = torch.log
         self.opacity_activation = torch.sigmoid
         self.inverse_opacity_activation = inverse_sigmoid
-        self.rotation_activation = torch.nn.functional.normalize# L2归一化
+        self.rotation_activation = torch.nn.functional.normalize# L2 normalize.
 
-    def capture_dict(self):# 字典结构
+    def capture_dict(self):# Checkpoint dictionary.
         return {
             "active_sh_degree": self.active_sh_degree,
             "xyz": self._xyz.clone().detach().cpu(),
@@ -128,22 +128,22 @@ class GaussianModel:
         fused_point_cloud = torch.tensor(np.asarray(pcd.points)).float().cuda()
         fused_color = RGB2SH(torch.tensor(
             np.asarray(pcd.colors)).float().cuda())
-        # 初始化球谐函数
+        # Initialize SH features.
         features = (torch.zeros((fused_color.shape[0], 3, (self.max_sh_degree + 1) ** 2)).float().cuda())# (N,3)->(N,3,(l+1)^2)
         features[:, :3, 0] = fused_color
         features[:, 3:, 1:] = 0.0
         print("Number of added points: ", fused_point_cloud.shape[0])
 
-        # 初始化三轴同向异性球，半径log(sqrt(dist2))
+        # Initialize anisotropic scales with log(sqrt(dist2)).
         if global_scale_init:
             global_points = torch.cat((self.get_xyz(),torch.from_numpy(np.asarray(pcd.points)).float().cuda()))
-            dist2 = torch.clamp_min(distCUDA2(global_points), 0.0000001)# CUDA加速邻点距离计算
+            dist2 = torch.clamp_min(distCUDA2(global_points), 0.0000001)# CUDA nearest-neighbor distance.
             dist2 = dist2[self.get_size():]
         else:
             dist2 = torch.clamp_min(distCUDA2(torch.from_numpy(np.asarray(pcd.points)).float().cuda()), 0.0000001)
         scales = torch.log(1.0 * torch.sqrt(dist2))[..., None].repeat(1, 3)
         # scales = torch.log(0.001 * torch.ones_like(dist2))[..., None].repeat(1, 3)
-        # 初始化单位四元数
+        # Initialize unit quaternions.
         rots = torch.zeros((fused_point_cloud.shape[0], 4), device="cuda")
         rots[:, 0] = 1
         opacities = inverse_sigmoid(0.5 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"))
@@ -162,7 +162,7 @@ class GaussianModel:
             new_rotation,
         )
 
-    # 根据iter步数，调整xyz参数的lr
+    # Update xyz learning rate by iteration.
     def update_learning_rate(self, iteration):
         ''' Learning rate scheduling per step '''
         for param_group in self.optimizer.param_groups:
@@ -194,7 +194,7 @@ class GaussianModel:
             )
 
         self.optimizer = torch.optim.Adam(params, lr=0.0, eps=1e-15)
-        self.xyz_scheduler_args = get_expon_lr_func(# 学习率衰减函数
+        self.xyz_scheduler_args = get_expon_lr_func(# Learning-rate decay function.
             lr_init=training_args.position_lr_init * self.spatial_lr_scale,
             lr_final=training_args.position_lr_final * self.spatial_lr_scale,
             lr_delay_mult=training_args.position_lr_delay_mult,
@@ -262,7 +262,7 @@ class GaussianModel:
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer, "min", factor=0.98, patience=10, verbose=False)
 
-    # 构造.ply存储列表
+    # Build the .ply attribute list.
     def construct_list_of_attributes(self):
         l = ["x", "y", "z", "nx", "ny", "nz"]
         # All channels except the 3 DC
@@ -379,7 +379,7 @@ class GaussianModel:
                 optimizable_tensors[group["name"]] = group["params"][0]
         return optimizable_tensors
 
-    # 裁减同步
+    # Keep optimizer state in sync after pruning.
     def _prune_optimizer(self, mask):
         optimizable_tensors = {}
         for group in self.optimizer.param_groups:
@@ -391,10 +391,10 @@ class GaussianModel:
                     stored_state["exp_avg"] = stored_state["exp_avg"][mask]
                     stored_state["exp_avg_sq"] = stored_state["exp_avg_sq"][mask]
 
-                    # 删除旧的并赋值
+                    # Replace the old optimizer entry.
                     del self.optimizer.state[group["params"][0]]
                     group["params"][0] = nn.Parameter((group["params"][0][mask].requires_grad_(True)))
-                    # 换成新的
+                    # Register the new parameter.
                     self.optimizer.state[group["params"][0]] = stored_state
                     optimizable_tensors[group["name"]] = group["params"][0]
                 else:
@@ -402,7 +402,7 @@ class GaussianModel:
                     optimizable_tensors[group["name"]] = group["params"][0]
         return optimizable_tensors
 
-    # 通过mask裁减
+    # Prune points by mask.
     def prune_points(self, mask):
         valid_points_mask = ~mask
         optimizable_tensors = self._prune_optimizer(valid_points_mask)
@@ -419,7 +419,7 @@ class GaussianModel:
         self.denom = self.denom[valid_points_mask]
         self.max_radii2D = self.max_radii2D[valid_points_mask]
 
-    # 拼接扩展
+    # Extend optimizer tensors.
     def cat_tensors_to_optimizer(self, tensors_dict):
         optimizable_tensors = {}
         for group in self.optimizer.param_groups:
@@ -429,9 +429,9 @@ class GaussianModel:
                 stored_state = self.optimizer.state.get(group["params"][0], None)
                 if stored_state is not None:
                     stored_state["exp_avg"] = torch.cat(
-                        (stored_state["exp_avg"], torch.zeros_like(extension_tensor)), dim=0)# Adam一阶矩
+                        (stored_state["exp_avg"], torch.zeros_like(extension_tensor)), dim=0)# Adam first moment.
                     stored_state["exp_avg_sq"] = torch.cat(
-                        (stored_state["exp_avg_sq"], torch.zeros_like(extension_tensor)), dim=0)# Adam二阶矩
+                        (stored_state["exp_avg_sq"], torch.zeros_like(extension_tensor)), dim=0)# Adam second moment.
 
                     del self.optimizer.state[group["params"][0]]
                     group["params"][0] = nn.Parameter(
@@ -446,7 +446,7 @@ class GaussianModel:
 
         return optimizable_tensors
 
-    # 点云増密
+    # Densify point cloud.
     def densification_postfix(self, new_xyz, new_features_dc, new_features_rest,
                               new_opacities, new_scaling, new_rotation):
         d = {
@@ -471,7 +471,7 @@ class GaussianModel:
         self.max_radii2D = torch.zeros(
             (self.get_xyz().shape[0]), device="cuda")
 
-    # 梯度统计累积
+    # Accumulate gradient statistics.
     def add_densification_stats(self, viewspace_point_tensor, update_filter):
         self.xyz_gradient_accum[update_filter] += torch.norm(
             viewspace_point_tensor.grad[update_filter, :2], dim=-1, keepdim=True)
@@ -519,4 +519,4 @@ class GaussianModel:
         self._rotation = nn.Parameter(rots.requires_grad_(True))
         self._opacity = nn.Parameter(opacities.requires_grad_(True))
         self.max_radii2D = torch.zeros(
-            (self.get_xyz().shape[0]), device="cuda")# 最大2D渲染半径
+            (self.get_xyz().shape[0]), device="cuda")# Max 2D render radius.

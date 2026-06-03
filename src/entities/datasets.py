@@ -270,7 +270,7 @@ class ScanNetPP(BaseDataset):
 class RealsenseROS(BaseDataset):
     def __init__(self, dataset_config: dict):
         super().__init__(dataset_config)
-        # ---- ROS 配置 ----
+        # ---- ROS config ----
         self.frames_topic = dataset_config.get("frames_topic", "/frames")
         self.queue_size   = int(dataset_config.get("queue_size", 10))
         self.max_buffer   = int(dataset_config.get("max_buffer", 10))
@@ -291,7 +291,7 @@ class RealsenseROS(BaseDataset):
         self.color_paths = [str(rgb_dir / f"{i:06d}.png") for i in range(self.ros_virtual_length)]
         self.depth_paths = [str(depth_dir / f"{i:06d}.png") for i in range(self.ros_virtual_length)]
 
-        # ---- ROS 初始化 ----
+        # ---- ROS init ----
         try:
             if not rospy.core.is_initialized():
                 rospy.init_node("RealsenseROS", anonymous=True, disable_signals=True)
@@ -300,10 +300,10 @@ class RealsenseROS(BaseDataset):
 
         cls, real_topic, _ = rostopic.get_topic_class(self.frames_topic, blocking=True)
         if cls is None:
-            raise RuntimeError(f"无法解析 {self.frames_topic} 的消息类型，请确认话题存在且可用。")
+            raise RuntimeError(f"Cannot resolve message type for {self.frames_topic}. Check that the topic exists.")
         self._frames_sub = rospy.Subscriber(real_topic, cls, self._frames_callback, queue_size=self.queue_size)
 
-    # ------------------------- 工具函数 -------------------------
+    # ------------------------- Helpers -------------------------
     def _safe_crop(self, img, edge: int):
         if img is None or edge <= 0:
             return img
@@ -361,9 +361,9 @@ class RealsenseROS(BaseDataset):
             #     self._history_depth.append(depth)
             #     self.poses[index] = pose
             # else:
-            #     rospy.logwarn_throttle(2.0, "[RealsenseROS] 已达到最大设置帧数，停止记录新帧")
+            #     rospy.logwarn_throttle(2.0, "[RealsenseROS] Max frame count reached; stop recording.")
 
-    # ------------------------- Dataset 接口 -------------------------
+    # ------------------------- Dataset API -------------------------
     def __len__(self):
         return self.ros_virtual_length
 
@@ -411,7 +411,7 @@ class RealsenseROS(BaseDataset):
             depth_u16 = (np.clip(depth * scale, 0, np.iinfo(np.uint16).max)).astype(np.uint16)
             cv2.imwrite(str(depth_dir / f"{idx_str}.png"), depth_u16)
         except Exception as e:
-            rospy.logwarn(f"[RealsenseROS] 同步存盘失败 @ {idx}: {e}")
+            rospy.logwarn(f"[RealsenseROS] Sync save failed @ {idx}: {e}")
 
     def close(self):
         try:

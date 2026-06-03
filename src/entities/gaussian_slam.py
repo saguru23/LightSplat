@@ -53,12 +53,12 @@ class GaussianSLAM(object):
         self.dataset = PreloadDataset(self.dataset)
         # self.dataset = get_dataset(config["dataset_name"])({**config["data"], **config["cam"], **config["ros"]})  # step-0
 
-        # mapping_frames数组，额外加上最后一帧
+        # Mapping frame IDs, with the last frame appended.
         n_frames = len(self.dataset)
         frame_ids = list(range(n_frames))
         self.mapping_frame_ids = frame_ids[::config["mapping"]["map_every"]] + [n_frames - 1]
 
-        # 每一帧位姿估计
+        # Per-frame pose estimates.
         self.estimated_c2ws = torch.empty(len(self.dataset), 4, 4)
         self.estimated_c2ws[0] = torch.from_numpy(self.dataset[0][3])
         self.exposures_ab = torch.zeros(len(self.dataset), 2)
@@ -70,14 +70,14 @@ class GaussianSLAM(object):
         self.keyframes_info = {}
         self.opt = OptimizationParams(ArgumentParser(description="Training script parameters"))
 
-        # submap_frames数组，额外加上最后一帧
+        # Submap frame IDs, with the last frame appended.
         if self.submap_using_motion_heuristic:
             self.new_submap_frame_ids = [0]
         else:
             self.new_submap_frame_ids = frame_ids[::config["mapping"]["new_submap_every"]] + [n_frames - 1]
             self.new_submap_frame_ids.pop(0)
 
-        # 启动
+        # Initialize modules.
         self.logger = Logger(self.output_path, config["use_wandb"])
         self.mapper = Mapper(config["mapping"], self.dataset, self.logger)
         self.tracker = Tracker(config["tracking"], self.dataset, self.logger)
@@ -122,13 +122,13 @@ class GaussianSLAM(object):
         Returns:
             A boolean indicating whether to start a new submap.
         """
-        if self.submap_using_motion_heuristic:# 运动阈值
+        if self.submap_using_motion_heuristic:# Motion threshold.
             if exceeds_motion_thresholds(
                 self.estimated_c2ws[frame_id], self.estimated_c2ws[self.new_submap_frame_ids[-1]],
                     rot_thre=50, trans_thre=0.5):
                 print(f"\nNew submap at {frame_id}")
                 return True
-        elif frame_id in self.new_submap_frame_ids:# 固定帧数
+        elif frame_id in self.new_submap_frame_ids:# Fixed frame interval.
             return True
         return False
 
@@ -256,14 +256,14 @@ class GaussianSLAM(object):
         }
         save_dict_to_ckpt(
             submap_ckpt, f"{submap_ckpt_name}.ckpt", directory=self.output_path / "submaps")
-        print(f"\n[Thread] change submap {submap_ckpt_name} ！！！")
+        print(f"\n[Thread] updated submap {submap_ckpt_name} ! ! !")
     
     def run(self) -> None:
         """ Starts the main program flow for Gaussian-SLAM, including tracking and mapping. """
         setup_seed(self.config["seed"])
         gaussian_model = GaussianModel(0)
         gaussian_model.training_setup(self.opt)
-        self.submap_id = 0# 初始化编号0
+        self.submap_id = 0# Initial submap ID.
         viewer = LightViewer()
 
         total_compute_time = 0.0
@@ -338,7 +338,7 @@ class GaussianSLAM(object):
                     estimate_c2w = torch2np(self.estimated_c2ws[frame_id])
                     new_submap = not bool(self.keyframes_info)
                     opt_dict = self.mapper.map(
-                        frame_id, estimate_c2w, gaussian_model, new_submap, exposure_ab)# 3.2高斯对齐
+                        frame_id, estimate_c2w, gaussian_model, new_submap, exposure_ab)# Section 3.2 Gaussian alignment.
 
                     # Keyframes info update
                     self.keyframes_info[frame_id] = {
@@ -363,7 +363,7 @@ class GaussianSLAM(object):
                             self.save_submap_from_result(result_data)
                         self.ready_event.clear()
                 
-                # 最后一帧触发lc检测
+                # Run loop closure on the last frame.
                 if (frame_id == len(self.dataset) - 1 or rospy.is_shutdown()) and self.config['lc']['final']:
                     print("\n Final loop closure ...")
                     self.loop_closer.update_submaps_info(self.keyframes_info)
@@ -374,10 +374,10 @@ class GaussianSLAM(object):
                 if self.enable_exposure:
                     self.exposures_ab[frame_id] = torch.tensor([exposure_ab[0].item(), exposure_ab[1].item()])
 
-                # 可视化
+                # Visualization.
                 viewer.update(self.estimated_c2ws[:frame_id + 1], _is_keyframe)
 
-                # 新增ROS退出检查
+                # ROS shutdown check.
                 if rospy.is_shutdown():
                     self.dataset.close()
                     self.is_running = False
