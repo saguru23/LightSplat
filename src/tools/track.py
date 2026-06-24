@@ -78,6 +78,10 @@ class Tracker:
             return True
 
     def needs_new_keyframe(self, success) -> bool:
+        if not success:
+            print("[Tracker] Skip keyframe while tracking is not reliable.")
+            return False
+
         T_rel = np.linalg.inv(self.last_keyframe_c2w) @ self.current_c2w
         dist = np.linalg.norm(T_rel[:3, 3])
         R, _ = cv2.Rodrigues(T_rel[:3, :3])
@@ -102,6 +106,12 @@ class Tracker:
         if self.valid_matches_dict:
             new_kf.mappoint_ids = self.valid_matches_dict.copy()
         self.map.insert_keyframe(new_kf)
+        self.odometer.set_reference(
+            frame_id,
+            self.current_frame_image,
+            self.current_frame_depth,
+            self.current_c2w,
+        )
         self.last_keyframe_c2w = self.current_c2w
 
     def lightglue_reloc(self, frame_id, pose_history: np.ndarray) -> np.ndarray:

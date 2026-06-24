@@ -19,6 +19,14 @@ class lightglueVO():
         self.keyframe_id = 1
         self.i0 = None
         self.d0 = None
+        self.ref_c2w = None
+
+        self.max_dist_thresh = config.get("max_dist_thresh", 0.5)
+        self.max_angle_thresh = np.deg2rad(config.get("max_angle_thresh", 15.0))
+        self.min_pose_inliers = config.get("min_pose_inliers", 50)
+        self.min_pose_inlier_ratio = config.get("min_pose_inlier_ratio", 0.25)
+        self.max_pose_rmse = config.get("max_pose_rmse", 5.0)
+        self.min_reference_matches = config.get("min_reference_matches", 150)
 
         # SuperPoint + LightGlue
         self.extractor = SuperPoint(max_num_keypoints=config["max_num_keypoints"]).eval().to(self.device)  # load the extractor
@@ -31,12 +39,19 @@ class lightglueVO():
         T[:3, 3] = t
         return T
     
-    def _load_data(self, image, depth):
+    def set_reference(self, frame_id, image, depth, c2w):
+        self.keyframe_id = frame_id
+        self.i0 = image
+        self.d0 = depth
+        self.ref_c2w = np.asarray(c2w, dtype=np.float64).copy()
+
+    def _load_data(self, image, depth, pose_history):
         self.i1 = image
         self.d1 = depth
         if self.i0 is None or self.d0 is None: 
             self.keyframe_id = self.curframe_id - 1
-        _, self.i0, self.d0, _ = self.dataset[self.keyframe_id]
+            _, self.i0, self.d0, _ = self.dataset[self.keyframe_id]
+            self.ref_c2w = np.asarray(pose_history[-1], dtype=np.float64).copy()
 
     def get_matches(self):
         i0 = torch.from_numpy(self.i0).permute(2, 0, 1).float().to(self.device) / 255.0
@@ -66,8 +81,13 @@ class lightglueVO():
 
         valid_3d = (z0 > 0.1) & (z0 < 20.0)
         if valid_3d.sum() < 50:
-            print("Not enough valid 3D points.")
-            return None, False
+            return None, False, {
+                "match_num": int(len(q1)),
+                "valid_num": int(valid_3d.sum()),
+                "inlier_num": 0,
+                "inlier_ratio": 0.0,
+                "rmse": float("inf"),
+            }
         else:
             print("valid_3d: ", valid_3d.sum())
 
@@ -95,8 +115,13 @@ class lightglueVO():
             )
 
             if not success or inliers is None or len(inliers) < 6:
-                print("PnP RANSAC returned success=False.")
-                return None, False
+                return None, False, {
+                    "match_num": int(len(q1)),
+                    "valid_num": int(valid_3d.sum()),
+                    "inlier_num": 0 if inliers is None else int(len(inliers)),
+                    "inlier_ratio": 0.0,
+                    "rmse": float("inf"),
+                }
 
             success, rvec, tvec = cv2.solvePnP(
                 X1[inliers.flatten()], 
@@ -110,63 +135,101 @@ class lightglueVO():
             )
             
             if not success:
-                print("PnP Refinement (ITERATIVE) failed.")
-                return None, False
+                return None, False, {
+                    "match_num": int(len(q1)),
+                    "valid_num": int(valid_3d.sum()),
+                    "inlier_num": int(len(inliers)),
+                    "inlier_ratio": float(len(inliers) / max(int(valid_3d.sum()), 1)),
+                    "rmse": float("inf"),
+                }
             else:
                 R, _ = cv2.Rodrigues(rvec)
                 t = tvec.flatten()
 
             if not (np.isfinite(R).all() and np.isfinite(t).all()):
-                print("PnP RANSAC returned NaN.")
-                return None, False
+                return None, False, {
+                    "match_num": int(len(q1)),
+                    "valid_num": int(valid_3d.sum()),
+                    "inlier_num": int(len(inliers)),
+                    "inlier_ratio": float(len(inliers) / max(int(valid_3d.sum()), 1)),
+                    "rmse": float("inf"),
+                }
             else:
-                return self._form_transf(R, t), True
+                inlier_ids = inliers.flatten()
+                projected, _ = cv2.projectPoints(X1[inlier_ids], rvec, tvec, self.K, None)
+                reproj_err = np.linalg.norm(projected.reshape(-1, 2) - q2v[inlier_ids], axis=1)
+                stats = {
+                    "match_num": int(len(q1)),
+                    "valid_num": int(valid_3d.sum()),
+                    "inlier_num": int(len(inlier_ids)),
+                    "inlier_ratio": float(len(inlier_ids) / max(int(valid_3d.sum()), 1)),
+                    "rmse": float(np.sqrt(np.mean(reproj_err ** 2))) if len(reproj_err) > 0 else float("inf"),
+                    "median": float(np.median(reproj_err)) if len(reproj_err) > 0 else float("inf"),
+                }
+                return self._form_transf(R, t), True, stats
 
         except cv2.error as e:
             print(f"cv2.solvePnPRansac error: {e}")
-            return None, False
+            return None, False, {
+                "match_num": int(len(q1)),
+                "valid_num": int(valid_3d.sum()),
+                "inlier_num": 0,
+                "inlier_ratio": 0.0,
+                "rmse": float("inf"),
+            }
         
     # ------------------------------------------------------------------
     #  VO main function.
     # ------------------------------------------------------------------
     
-    def update_keyframe(self, num_matches):
-        MIN_MATCHES_TO_KEEP = 150
-        if num_matches < MIN_MATCHES_TO_KEEP:
+    def _pose_quality_ok(self, stats):
+        return (
+            stats["inlier_num"] >= self.min_pose_inliers
+            and stats["inlier_ratio"] >= self.min_pose_inlier_ratio
+            and stats["rmse"] <= self.max_pose_rmse
+        )
+
+    def update_keyframe(self, num_matches, stats, current_c2w):
+        if num_matches < self.min_reference_matches or not self._pose_quality_ok(stats):
             return self.keyframe_id
 
-        self.keyframe_id = self.curframe_id
-        self.i0 = self.i1
-        self.d0 = self.d1
+        self.set_reference(self.curframe_id, self.i1, self.d1, current_c2w)
         return self.keyframe_id
+
+    @staticmethod
+    def _constant_velocity_pose(prev_c2ws: np.ndarray):
+        rel_w2c = np.linalg.inv(prev_c2ws[2]) @ prev_c2ws[1]
+        return prev_c2ws[-1] @ np.linalg.inv(rel_w2c)
         
     def update(self, idx, image, depth, prev_c2ws: np.ndarray):
         self.curframe_id = idx
         print(f"\nTracking frame {idx}")
         
-        self._load_data(image, depth)
+        self._load_data(image, depth, prev_c2ws)
         q1, q2 = self.get_matches()
         
-        transf_rel = np.linalg.inv(prev_c2ws[2, :]) @ prev_c2ws[1, :]
-        transf, is_ok = self.get_pose(q1, q2)
-        if not is_ok: 
-            transf = transf_rel
+        fallback_pose = self._constant_velocity_pose(prev_c2ws)
+        transf, is_ok, stats = self.get_pose(q1, q2)
+        if not is_ok or not self._pose_quality_ok(stats):
+            print(
+                "[LightGlue] rejected pose: "
+                f"inliers={stats['inlier_num']}, ratio={stats['inlier_ratio']:.2f}, rmse={stats['rmse']:.2f}"
+            )
+            cur_pose = fallback_pose
+            is_ok = False
         else:
             dist = np.linalg.norm(transf[:3, 3])
             R, _ = cv2.Rodrigues(transf[:3, :3])
             angle = np.linalg.norm(R)
             
-            MAX_DIST_THRESH = 0.5
-            MAX_ANGLE_THRESH = np.deg2rad(15.0)
-            
-            if dist > MAX_DIST_THRESH or angle > MAX_ANGLE_THRESH:
+            if dist > self.max_dist_thresh or angle > self.max_angle_thresh:
                 print(f"LightGlue (lost): Dist={dist:.2f}m, Angle={np.rad2deg(angle):.1f}deg")
-                transf = transf_rel
+                cur_pose = fallback_pose
                 is_ok = False
+            else:
+                cur_pose = self.ref_c2w @ np.linalg.inv(transf)
+                self.update_keyframe(len(q1), stats, cur_pose)
 
-        cur_pose = prev_c2ws[-1] @ np.linalg.inv(transf)
-        self.update_keyframe(len(q1))
-        
         return cur_pose, is_ok
     
 

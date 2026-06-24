@@ -26,17 +26,40 @@ class KeyFrame:
 class MapPoint:
     _next_id = 0
     
-    def __init__(self, position: np.ndarray, descriptor: np.ndarray):
+    def __init__(self, position: np.ndarray, descriptor: np.ndarray, created_kf_id: int | None = None):
         self.id = MapPoint._next_id
         MapPoint._next_id += 1
         self.position = position.astype(np.float64)
         self.descriptor = descriptor.astype(np.float32)
+        desc_norm = np.linalg.norm(self.descriptor)
+        if desc_norm > 1e-12:
+            self.descriptor /= desc_norm
+        self.created_kf_id = created_kf_id
+        self.last_observed_kf = created_kf_id
         
         # KeyFrame IDs that observe this point.
         self.observed_by_kfs: set[int] = set() 
 
-    def add_observation(self, kf_id: int):
+    def add_observation(self, kf_id: int, descriptor: np.ndarray | None = None, position: np.ndarray | None = None):
+        is_new_observation = kf_id not in self.observed_by_kfs
+        obs_count = len(self.observed_by_kfs)
+
+        if is_new_observation and position is not None and obs_count > 0:
+            self.position = (self.position * obs_count + position.astype(np.float64)) / (obs_count + 1)
+
+        if is_new_observation and descriptor is not None:
+            desc = descriptor.astype(np.float32)
+            desc_norm = np.linalg.norm(desc)
+            if desc_norm > 1e-12:
+                desc /= desc_norm
+                self.descriptor = (self.descriptor * obs_count + desc) / (obs_count + 1)
+                avg_norm = np.linalg.norm(self.descriptor)
+                if avg_norm > 1e-12:
+                    self.descriptor /= avg_norm
+
         self.observed_by_kfs.add(kf_id)
+        if self.last_observed_kf is None or kf_id > self.last_observed_kf:
+            self.last_observed_kf = kf_id
         
     def remove_observation(self, kf_id: int):
         if kf_id in self.observed_by_kfs:
@@ -61,6 +84,16 @@ class Mapper:
     #  Mapper helpers.
     # ------------------------------------------------------------------
 
+    def _delete_mappoints(self, mp_ids: set[int]):
+        if not mp_ids:
+            return
+        for kf in self.keyframes.values():
+            stale_feat_ids = [fid for fid, mid in kf.mappoint_ids.items() if mid in mp_ids]
+            for fid in stale_feat_ids:
+                del kf.mappoint_ids[fid]
+        for mp_id in mp_ids:
+            self.mappoints.pop(mp_id, None)
+
     def sliding_window_culling(self):
         
         while len(self.keyframes) > self.sliding_window:
@@ -74,8 +107,7 @@ class Mapper:
                     if len(mp.observed_by_kfs) == 0:  # Delete if no other frame observes it.
                         points_to_delete.add(mp_id)
             
-            for mp_id in points_to_delete:
-                del self.mappoints[mp_id]
+            self._delete_mappoints(points_to_delete)
 
     def insert_keyframe(self, kf: KeyFrame | None):
         if kf is None: return
@@ -122,10 +154,13 @@ class Mapper:
 
         # 2. Maintain old observations and prepare the local map.
         is_linked = np.array([i in kf.mappoint_ids for i in idxs])
-        for i in idxs[is_linked]:
-            mp = self.mappoints.get(kf.mappoint_ids[i])
-            if mp: mp.add_observation(kf.frame_id)
-            else: del kf.mappoint_ids[i]
+        for local_idx in np.flatnonzero(is_linked):
+            feat_idx = idxs[local_idx]
+            mp = self.mappoints.get(kf.mappoint_ids[feat_idx])
+            if mp:
+                mp.add_observation(kf.frame_id, descs[feat_idx], P_w[local_idx])
+            else:
+                del kf.mappoint_ids[feat_idx]
 
         local_map = self.get_local_map(kf.pose_c2w)
         unlinked = np.where(~is_linked)[0]
@@ -159,7 +194,7 @@ class Mapper:
                     for q_i, m_i in zip(vq_s[u_idx], vm_s[u_idx]):
                         mp = self.mappoints.get(map_ids[m_i])
                         if mp:
-                            mp.add_observation(kf.frame_id)
+                            mp.add_observation(kf.frame_id, D_q[q_i], P_q[q_i])
                             kf.add_mappoint_observation(orig_sub[q_i], mp.id)
                             matched[q_i] = True
 
@@ -169,15 +204,37 @@ class Mapper:
         if count_new_mpts > 0:
             P_new, D_new, orig_new = P_w[new_mpts], descs[idxs[new_mpts]], idxs[new_mpts]
             for i, oid in enumerate(orig_new):
-                mp = MapPoint(P_new[i], D_new[i])
-                mp.add_observation(kf.frame_id)
+                mp = MapPoint(P_new[i], D_new[i], created_kf_id=kf.frame_id)
+                mp.add_observation(kf.frame_id, D_new[i], P_new[i])
                 self.mappoints[mp.id] = mp
                 kf.add_mappoint_observation(oid, mp.id)
 
         print(f"[Mapper] KeyFrame {kf.frame_id}: created {count_new_mpts} map points.")
 
     def recent_mappoints_culling(self, kf: KeyFrame):
-        pass
+        if not self.mappoints:
+            return
+
+        keyframe_ids = list(self.keyframes.keys())
+        keyframe_order = {frame_id: i for i, frame_id in enumerate(keyframe_ids)}
+        current_order = keyframe_order.get(kf.frame_id, len(keyframe_ids) - 1)
+        points_to_delete = set()
+
+        for mp_id, mp in list(self.mappoints.items()):
+            if not np.isfinite(mp.position).all() or len(mp.observed_by_kfs) == 0:
+                points_to_delete.add(mp_id)
+                continue
+
+            if mp.created_kf_id not in keyframe_order:
+                continue
+
+            age = current_order - keyframe_order[mp.created_kf_id]
+            if age >= 2 and len(mp.observed_by_kfs) < 2:
+                points_to_delete.add(mp_id)
+
+        if points_to_delete:
+            self._delete_mappoints(points_to_delete)
+            print(f"[Mapper] Culled {len(points_to_delete)} weak map points.")
 
     def local_keyframes_culling(self, kf: KeyFrame):
         pass
@@ -196,14 +253,17 @@ class Mapper:
 
         kfs = list(self.keyframes.values())
         mps = list(self.mappoints.values())
-        if len(kfs) < 2 or not mps: return {}
+        if len(kfs) < 2 or not mps:
+            return {}
 
         # 1. Build observation edges.
         mp_map = {mp.id: i for i, mp in enumerate(mps)}
         edges = [[i, mp_map[mid], *kf.features['keypoints'][fid]] 
                  for i, kf in enumerate(kfs) 
                  for fid, mid in kf.mappoint_ids.items() if mid in mp_map]
-        if not edges: return {}
+        if len(edges) < 20:
+            print(f"[Mapper] Skip local BA: only {len(edges)} observation edges.")
+            return {}
 
         device = "cpu" # Force CPU.
         T = torch.tensor(edges, dtype=torch.float64, device=device)
@@ -249,8 +309,15 @@ class Mapper:
             loss.backward()
             return loss
 
-        try: optimizer.step(closure)
-        except: return {}
+        try:
+            optimizer.step(closure)
+        except Exception as e:
+            print(f"[Mapper] Local BA failed: {e}")
+            return {}
+
+        if not torch.isfinite(active).all() or not torch.isfinite(xyz).all():
+            print("[Mapper] Local BA produced non-finite values; skipping writeback.")
+            return {}
 
         # 4. Write back results.
         optimized_poses = {}
@@ -287,11 +354,11 @@ class Mapper:
             else:
                 self.keyframes[current_kf.frame_id] = current_kf
             
-            # Cull redundant map points.
-            self.recent_mappoints_culling(current_kf) 
-            
             # Add new map points.
             self.create_new_mappoints(current_kf)
+
+            # Cull weak map points after the current observations are merged.
+            self.recent_mappoints_culling(current_kf)
             
             # Local BA.
             if self.needs_local_ba(current_kf):
