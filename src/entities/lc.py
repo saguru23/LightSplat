@@ -146,6 +146,10 @@ class Loop_closure(object):
         Args:
             keyframes_info (dict): a dictionary of all submap information for loop closures
         """
+        if not keyframes_info:
+            print(f"[LoopClosure] Skip submap {self.submap_id}: no keyframes.")
+            return
+
         with torch.no_grad():
             kf_ids, submap_desc = [], []
             for key in keyframes_info.keys():

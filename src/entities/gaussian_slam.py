@@ -122,6 +122,9 @@ class GaussianSLAM(object):
         Returns:
             A boolean indicating whether to start a new submap.
         """
+        if not self.keyframes_info:
+            return False
+
         if self.submap_using_motion_heuristic:# Motion threshold.
             if exceeds_motion_thresholds(
                 self.estimated_c2ws[frame_id], self.estimated_c2ws[self.new_submap_frame_ids[-1]],
@@ -294,7 +297,10 @@ class GaussianSLAM(object):
                     
                 if frame_id > 2:
                     total_compute_time += (time.time() - time0)
-                
+
+                if not self.keyframes_info:
+                    _is_keyframe = True
+
                 # Reinitialize gaussian model for new segment
                 if self.should_start_new_submap(frame_id):
                     # first save current submap and its keyframe info
@@ -326,6 +332,7 @@ class GaussianSLAM(object):
                     self.optimize_queue.put(task)
                     
                     gaussian_model = self.start_new_submap(frame_id, gaussian_model)
+                    _is_keyframe = True
                     if len(lc_output) > 0:
                         self.lgvo_tracker.restart(frame_id, torch2np(self.estimated_c2ws[frame_id]))
 

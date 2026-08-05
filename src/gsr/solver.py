@@ -334,12 +334,11 @@ def gaussian_registration_fast(src_dict, tgt_dict, config: dict, visualize=False
 
         T_tgt_old = t_cam_match.get_T.detach()
         T_src_old = s_cam_match.get_T.detach()
-        # Source side
-        T_src_new = T_rel.inverse() @ T_tgt_old
-        T_correction = T_src_new @ T_src_old.inverse()
-        # Target side
-        T_tgt_new = T_rel @ T_src_old
-        T_correction2 = T_tgt_new @ T_tgt_old.inverse()
+        # T_rel maps source-camera coordinates to target-camera coordinates.
+        # Camera.get_T stores world-to-camera. The induced submap transform maps
+        # source-world coordinates into target-world coordinates.
+        source_to_target = T_tgt_old.inverse() @ T_rel @ T_src_old
+        target_to_source = source_to_target.inverse()
 
         match_found = True
 
@@ -367,7 +366,7 @@ def gaussian_registration_fast(src_dict, tgt_dict, config: dict, visualize=False
         else:
             viewpoint.load_rgb()
         curr_T = viewpoint.get_T.detach()
-        new_T = T_correction @ curr_T
+        new_T = curr_T @ target_to_source
         viewpoint.update_RT(new_T[:3, :3], new_T[:3, 3])
         converged, pred_tsfm, residual, loss_log = viewpoint_localizer(viewpoint, tgt_3dgs, config["base_lr"], True)
 
@@ -394,7 +393,7 @@ def gaussian_registration_fast(src_dict, tgt_dict, config: dict, visualize=False
             else:
                 viewpoint.load_rgb()
             curr_T = viewpoint.get_T.detach()
-            new_T = T_correction2 @ curr_T
+            new_T = curr_T @ source_to_target
             viewpoint.update_RT(new_T[:3, :3], new_T[:3, 3])
             converged, pred_tsfm, residual, loss_log = viewpoint_localizer(viewpoint, src_3dgs, config["base_lr"], True)
 
@@ -482,5 +481,4 @@ def gaussian_registration(src_dict, tgt_dict, config: dict, visualize=False, lg=
         return gaussian_registration_fast(src_dict, tgt_dict, config, visualize, lg)
     else:
         raise ValueError(f"Unknown registration mode: {mode}")
-
 

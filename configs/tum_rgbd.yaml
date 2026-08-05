@@ -68,4 +68,4 @@ light:
   min_keyframe_angle: 10.0
   sliding_window: 10
   loop_uncertain: True  # important
-  registration_mode: "normal"  # fast, normal
+  registration_mode: "fast"  # fast, normal
