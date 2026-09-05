@@ -68,10 +68,10 @@ class Tracker:
         R, _ = cv2.Rodrigues(T_rel[:3, :3])
         angle = np.linalg.norm(R)
         
-        MAX_DIST_THRESH = self.config["max_dist_thresh"]
-        MAX_ANGLE_THRESH = np.deg2rad(self.config["max_angle_thresh"])
+        MAX_THRESH_DIST = self.config["max_thresh_dist"]
+        MAX_THRESH_ANGLE = np.deg2rad(self.config["max_thresh_angle"])
         
-        if dist > MAX_DIST_THRESH or angle > MAX_ANGLE_THRESH:
+        if dist > MAX_THRESH_DIST or angle > MAX_THRESH_ANGLE:
             print(f"[Tracker] New keyframe (lost): Dist={dist:.2f}m, Angle={np.rad2deg(angle):.1f}deg")
             return False
         else:
@@ -114,8 +114,14 @@ class Tracker:
         )
         self.last_keyframe_c2w = self.current_c2w
 
-    def lightglue_reloc(self, frame_id, pose_history: np.ndarray) -> np.ndarray:
-        pose, is_ok = self.odometer.update(frame_id, self.current_frame_image, self.current_frame_depth, pose_history)
+    def lightglue_reloc(self, frame_id, pose_history: np.ndarray, relocalizing: bool = False) -> np.ndarray:
+        pose, is_ok = self.odometer.update(
+            frame_id,
+            self.current_frame_image,
+            self.current_frame_depth,
+            pose_history,
+            relocalizing=relocalizing,
+        )
         return pose, is_ok
 
     # ------------------------------------------------------------------
@@ -254,6 +260,8 @@ class Tracker:
         # 1. Load data.
         self._load_current_frame_data(frame_id)
 
+        was_lost = self.state == "LOST"
+
         if frame_id in [0, 1]:
             self.state = "INITIALIZING"
             self._catch_features()
@@ -262,7 +270,7 @@ class Tracker:
             self.create_new_keyframe(frame_id)
             return self.current_c2w, _is_keyframe
         else:
-            self.state = "TRACKING"
+            self.state = "LOST" if was_lost else "TRACKING"
         
         # 2. Estimate the initial pose.
         self.current_c2w = self.initial_pose_estimation(frame_id, pose_history)
@@ -270,8 +278,12 @@ class Tracker:
         # 3. Track the local map.
         success = self.track_local_map()
         if not (success and self.tracking_threshold()): 
-            self.current_c2w, success = self.lightglue_reloc(frame_id, pose_history)
-            self.state = "LOST"
+            self.current_c2w, success = self.lightglue_reloc(
+                frame_id,
+                pose_history,
+                relocalizing=was_lost or not success,
+            )
+            self.state = "TRACKING" if success else "LOST"
         
         # 4. Decide whether to add a keyframe.
         _is_keyframe = False

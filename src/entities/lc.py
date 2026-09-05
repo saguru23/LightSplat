@@ -391,7 +391,7 @@ class Loop_closure(object):
                                                             candidate["target_id"],
                                                             candidate["transformation"],
                                                             candidate["information"],
-                                                            uncertain=self.config['light']['loop_uncertain']))
+                                                            uncertain=self.config['light'].get('loop_uncertain', True)))
 
             option = o3d.pipelines.registration.GlobalOptimizationOption(
                 max_correspondence_distance=self.max_correspondence_distance_fine,
@@ -420,7 +420,7 @@ class Loop_closure(object):
                 
             self._prepare_analysis_cameras(self.submap_id + 1)
             self.analyse_pgo(odometry_edges, loop_edges, trial_pose_graph)
-            if self.config['light']['loop_uncertain']:
+            if self.config['light'].get('loop_uncertain', True):
                 for candidate in candidate_loop_edges:
                     self.loop_edge_keys.add(candidate["edge_key"])
             self._reset_odom_graph_cache()

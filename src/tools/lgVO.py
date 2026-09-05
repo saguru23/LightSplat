@@ -21,8 +21,10 @@ class lightglueVO():
         self.d0 = None
         self.ref_c2w = None
 
-        self.max_dist_thresh = config.get("max_dist_thresh", 0.5)
-        self.max_angle_thresh = np.deg2rad(config.get("max_angle_thresh", 15.0))
+        self.max_thresh_dist = config.get("max_thresh_dist", 0.5)
+        self.max_thresh_angle = np.deg2rad(config.get("max_thresh_angle", 15.0))
+        self.relocalize_max_thresh_dist = config.get("relocalize_max_thresh_dist", 1.0)
+        self.relocalize_max_thresh_angle = np.deg2rad(config.get("relocalize_max_thresh_angle", 60.0))
         self.min_pose_inliers = config.get("min_pose_inliers", 50)
         self.min_pose_inlier_ratio = config.get("min_pose_inlier_ratio", 0.25)
         self.max_pose_rmse = config.get("max_pose_rmse", 5.0)
@@ -201,7 +203,7 @@ class lightglueVO():
         rel_w2c = np.linalg.inv(prev_c2ws[2]) @ prev_c2ws[1]
         return prev_c2ws[-1] @ np.linalg.inv(rel_w2c)
         
-    def update(self, idx, image, depth, prev_c2ws: np.ndarray):
+    def update(self, idx, image, depth, prev_c2ws: np.ndarray, relocalizing: bool = False):
         self.curframe_id = idx
         print(f"\nTracking frame {idx}")
         
@@ -221,13 +223,22 @@ class lightglueVO():
             dist = np.linalg.norm(transf[:3, 3])
             R, _ = cv2.Rodrigues(transf[:3, :3])
             angle = np.linalg.norm(R)
+            max_thresh_dist = self.relocalize_max_thresh_dist if relocalizing else self.max_thresh_dist
+            max_thresh_angle = self.relocalize_max_thresh_angle if relocalizing else self.max_thresh_angle
             
-            if dist > self.max_dist_thresh or angle > self.max_angle_thresh:
-                print(f"LightGlue (lost): Dist={dist:.2f}m, Angle={np.rad2deg(angle):.1f}deg")
+            if dist > max_thresh_dist or angle > max_thresh_angle:
+                mode = "relocalization" if relocalizing else "tracking"
+                print(
+                    f"LightGlue rejected ({mode}): "
+                    f"Dist={dist:.2f}m/{max_thresh_dist:.2f}m, "
+                    f"Angle={np.rad2deg(angle):.1f}deg/{np.rad2deg(max_thresh_angle):.1f}deg"
+                )
                 cur_pose = fallback_pose
                 is_ok = False
             else:
                 cur_pose = self.ref_c2w @ np.linalg.inv(transf)
+                if relocalizing:
+                    print(f"LightGlue relocalized: Dist={dist:.2f}m, Angle={np.rad2deg(angle):.1f}deg")
                 self.update_keyframe(len(q1), stats, cur_pose)
 
         return cur_pose, is_ok

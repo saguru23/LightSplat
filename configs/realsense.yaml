@@ -52,7 +52,7 @@ cam:
 lc:
   min_similarity: 0.5
   pgo_edge_prune_thres: 0.25
-  voxel_size: 0.02
+  voxel_size: 0.1
   pgo_max_iterations: 500
   registration:
     method: "gs_reg"
@@ -71,11 +71,11 @@ ros:
 light:
   used: True
   max_num_keypoints: 1000
-  position_offset_max: 0.1
-  max_dist_thresh: 0.5
-  max_angle_thresh: 15.0
+  max_thresh_dist: 0.5
+  max_thresh_angle: 15.0
+  relocalize_max_thresh_dist: 1.0
+  relocalize_max_thresh_angle: 60.0
   min_keyframe_dist: 0.08
   min_keyframe_angle: 10.0
   sliding_window: 10
-  loop_uncertain: False
   registration_mode: "fast"  # fast, normal
