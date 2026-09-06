@@ -1,29 +1,22 @@
-# LightSplat
-
-<h3 align="center">
+<h1 align="center">
+  LightSplat:<br>
   Real-Time High-Fidelity 3D Gaussian SLAM with Loop Closure
-</h3>
+</h1>
 
 <p align="center">
-  Junze Bao, Ye Gao, Yiming Huang, Xiaolong Yu, Chen Dong, Qing Gao, Wei Wang, Jinhu Lv
-  <br>
-  <strong>IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), 2026</strong>
+  <strong>IROS 2026</strong>
 </p>
 
 <p align="center">
-  <a href="#"><strong>Paper</strong> (coming soon)</a>
+  Junze Bao, Ye Gao, Yiming Huang, Xiaolong Yu<br>
+  Chen Dong, Qing Gao, Wei Wang, Jinhu Lv
 </p>
-
-<!-- Replace the placeholder link above after the paper is public. -->
 
 <p align="center">
-  <img src="assets/lightsplat.png" alt="LightSplat teaser" width="100%">
+  <a href="#"><strong>Paper</strong></a> coming soon
 </p>
 
-**LightSplat** is a real-time RGB-D SLAM system for high-fidelity 3D Gaussian
-mapping in practical indoor scenes. It couples a lightweight local-feature
-front-end with dense Gaussian submap reconstruction and online loop closure,
-bringing the efficiency of feature-based tracking into a 3DGS SLAM pipeline.
+<!-- Replace the placeholder paper link after the paper is public. -->
 
 ## News
 
@@ -31,6 +24,15 @@ bringing the efficiency of feature-based tracking into a 3DGS SLAM pipeline.
 - Code and documentation will be continuously updated.
 
 ## Highlights
+
+**LightSplat** is a real-time RGB-D SLAM system for high-fidelity 3D Gaussian
+mapping in practical indoor scenes. It couples a lightweight local-feature
+front-end with dense Gaussian submap reconstruction and online loop closure,
+bringing the efficiency of feature-based tracking into a 3DGS SLAM pipeline.
+
+<p align="center">
+  <img src="assets/lightsplat.png" alt="LightSplat teaser" width="95%">
+</p>
 
 - Real-time RGB-D tracking with a LightGlue-based visual front-end.
 - Dense, high-fidelity scene reconstruction with 3D Gaussian submaps.
