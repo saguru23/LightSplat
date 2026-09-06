@@ -14,9 +14,7 @@
 
 <p align="center">
   <a href="#"><strong>Paper</strong></a> |
-  <a href="#"><strong>Video</strong></a>
-  <br>
-  coming soon
+  <a href="#"><strong>Video</strong></a> coming soon
 </p>
 
 <!-- Replace the placeholder links after the paper/video pages are public. -->
