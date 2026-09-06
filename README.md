@@ -105,7 +105,7 @@ Run with RealSense/ROS input:
 python run_slam.py configs/realsense.yaml
 ```
 
-Run only the LightGlue front-end:
+Run only the LightSplat front-end:
 
 ```bash
 python -m src.tools.run_slam configs/tum_rgbd.yaml
