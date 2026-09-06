@@ -112,6 +112,8 @@ This project is developed based on the following open-source projects:
 - [Gaussian-SLAM](https://github.com/VladimirYugay/Gaussian-SLAM)
 - [LoopSplat](https://github.com/GradientSpaces/LoopSplat)
 
+We thank the authors for their excellent open-source contributions.
+
 ## License
 
 The LightSplat code in this repository is released under the MIT License. Parts
