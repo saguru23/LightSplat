@@ -107,14 +107,10 @@ python -m src.tools.run_slam configs/tum_rgbd.yaml
 
 ## Acknowledgements
 
-This project builds on the following open-source works:
-
-- [Gaussian-SLAM](https://github.com/VladimirYugay/Gaussian-SLAM): the base
-  3D Gaussian SLAM pipeline and reconstruction framework.
-- [LoopSplat](https://github.com/GradientSpaces/LoopSplat): loop closure and
-  submap optimization for globally consistent Gaussian SLAM.
+This project builds on [Gaussian-SLAM](https://github.com/VladimirYugay/Gaussian-SLAM)
+and [LoopSplat](https://github.com/GradientSpaces/LoopSplat). We thank the authors
+for their open-source work.
 
 ## License
 
-This project is released under the MIT License. You are free to use, modify, and
-distribute the code under the terms described in `LICENSE`.
+This project is released under the MIT License. See `LICENSE` for details.
