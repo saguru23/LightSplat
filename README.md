@@ -20,24 +20,25 @@
 
 ## News
 
-- **2026.06** LightSplat was accepted to IEEE/RSJ IROS 2026.
+- **2026.06** LightSplat was accepted for publication at the IEEE/RSJ
+  International Conference on Intelligent Robots and Systems (IROS 2026).
 - Code and documentation will be continuously updated.
 
 ## Highlights
 
-**LightSplat** is a real-time RGB-D SLAM system for high-fidelity 3D Gaussian
-mapping in practical indoor scenes. It couples a lightweight local-feature
-front-end with dense Gaussian submap reconstruction and online loop closure,
-bringing the efficiency of feature-based tracking into a 3DGS SLAM pipeline.
+**LightSplat** is a hybrid map representation framework for real-time,
+high-fidelity 3D Gaussian SLAM. It represents scene structure in a form that
+supports efficient localization, Gaussian mapping, and loop registration while
+reducing map fractures and artifacts in decoupled 3DGS-SLAM pipelines.
 
 <p align="center">
   <img src="assets/lightsplat.png" alt="LightSplat teaser" width="95%">
 </p>
 
-- Real-time RGB-D tracking with a LightGlue-based visual front-end.
-- Dense, high-fidelity scene reconstruction with 3D Gaussian submaps.
-- Online loop closure through feature-accelerated Gaussian registration.
-- Support for TUM RGB-D, Replica, ScanNet, and RealSense/ROS input.
+- Hybrid map representation for real-time 3DGS-SLAM.
+- Efficient localization and loop registration.
+- Submap refinement for coherent Gaussian maps.
+- Balanced runtime efficiency and reconstruction fidelity.
 
 ## Setup
 
