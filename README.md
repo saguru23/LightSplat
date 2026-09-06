@@ -13,10 +13,11 @@
 </p>
 
 <p align="center">
-  <a href="#"><strong>Paper</strong></a> coming soon
+  <a href="#"><strong>Paper</strong></a> coming soon |
+  <a href="#"><strong>Video</strong></a> coming soon
 </p>
 
-<!-- Replace the placeholder paper link after the paper is public. -->
+<!-- Replace the placeholder links after the paper/video pages are public. -->
 
 ## News
 
