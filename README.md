@@ -107,10 +107,14 @@ python -m src.tools.run_slam configs/tum_rgbd.yaml
 
 ## Acknowledgements
 
-This project builds on [Gaussian-SLAM](https://github.com/VladimirYugay/Gaussian-SLAM)
-and [LoopSplat](https://github.com/GradientSpaces/LoopSplat). We thank the authors
-for their open-source work.
+This project is developed based on the following open-source projects:
+
+- [Gaussian-SLAM](https://github.com/VladimirYugay/Gaussian-SLAM)
+- [LoopSplat](https://github.com/GradientSpaces/LoopSplat)
 
 ## License
 
-This project is released under the MIT License. See `LICENSE` for details.
+The LightSplat code in this repository is released under the MIT License. Parts
+of the codebase are adapted from upstream open-source projects and third-party
+dependencies, which remain under their original licenses. See `LICENSE` and the
+corresponding third-party repositories for details.
