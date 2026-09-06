@@ -107,12 +107,12 @@ python -m src.tools.run_slam configs/tum_rgbd.yaml
 
 ## Acknowledgements
 
-This project is developed based on the following open-source projects:
+LightSplat is developed with reference to several excellent open-source SLAM and
+3D Gaussian Splatting projects. We sincerely thank the authors for their
+valuable contributions to the community:
 
 - [Gaussian-SLAM](https://github.com/VladimirYugay/Gaussian-SLAM)
 - [LoopSplat](https://github.com/GradientSpaces/LoopSplat)
-
-We thank the authors for their excellent open-source contributions.
 
 ## License
 
