@@ -107,8 +107,8 @@ python -m src.tools.run_slam configs/tum_rgbd.yaml
 
 ## Acknowledgements
 
-We thank the authors of the following open-source projects for their valuable
-work:
+This project builds on `Gaussian-SLAM` and `LoopSplat`. We thank the authors for
+their open-source work.
 
 - [Gaussian-SLAM](https://github.com/VladimirYugay/Gaussian-SLAM), which provides
   a real-time 3D Gaussian SLAM framework.
