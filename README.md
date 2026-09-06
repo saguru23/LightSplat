@@ -36,11 +36,6 @@ reducing map fractures and artifacts in decoupled 3DGS-SLAM pipelines.
   <img src="assets/lightsplat.png" alt="LightSplat teaser" width="95%">
 </p>
 
-- Hybrid map representation for real-time 3DGS-SLAM.
-- Efficient localization and loop registration.
-- Submap refinement for coherent Gaussian maps.
-- Balanced runtime efficiency and reconstruction fidelity.
-
 ## Setup
 
 Clone the repository with its submodules:
