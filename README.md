@@ -36,6 +36,11 @@ reducing map fractures and artifacts in decoupled 3DGS-SLAM pipelines.
   <img src="assets/lightsplat.png" alt="LightSplat teaser" width="95%">
 </p>
 
+- Hybrid map representation for real-time 3DGS-SLAM.
+- Efficient localization and loop registration.
+- Submap refinement for coherent Gaussian maps.
+- Balanced runtime efficiency and reconstruction fidelity.
+
 ## Setup
 
 Clone the repository with its submodules:
@@ -92,6 +97,12 @@ Run the full SLAM pipeline:
 
 ```bash
 python run_slam.py configs/tum_rgbd.yaml
+```
+
+Run with RealSense/ROS input:
+
+```bash
+python run_slam.py configs/realsense.yaml
 ```
 
 Run only the LightGlue front-end:
