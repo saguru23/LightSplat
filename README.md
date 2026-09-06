@@ -1,10 +1,21 @@
 # LightSplat
 
-RGB-D SLAM with a real-time Gaussian-Splatting framework.
+**LightSplat** is a real-time RGB-D SLAM system that combines a LightGlue-based
+front-end with Gaussian Splatting reconstruction and loop closure. It is designed
+to keep tracking lightweight while preserving the dense, view-consistent mapping
+quality of Gaussian SLAM.
+
+<p align="center">
+  <img src="assets/lightsplat.png" alt="LightSplat teaser" width="100%">
+</p>
+
+LightSplat builds on the Gaussian-SLAM pipeline and extends it with a fast visual
+front-end, submap-level loop correction, and practical dataset support for indoor
+RGB-D sequences.
 
 ## Setup
 
-Clone the repository and its submodules:
+Clone the repository with its submodules:
 
 ```bash
 git clone --recursive https://github.com/saguru23/LightSplat.git
@@ -12,7 +23,7 @@ cd LightSplat
 git submodule update --init --recursive
 ```
 
-Create the environment with CUDA 11.8, then install the Python requirements:
+Create the environment with CUDA 11.8, then install the Python dependencies:
 
 ```bash
 conda create -n lightsplat python=3.10 -y
@@ -40,8 +51,8 @@ Download Replica:
 bash scripts/download_replica.sh
 ```
 
-The scripts clone the datasets into `data/`. After downloading, edit the config
-file and set the correct dataset path:
+The scripts place datasets under `data/`. After downloading, edit the config file
+and set the correct sequence path:
 
 ```yaml
 data:
@@ -49,7 +60,8 @@ data:
   output_path: output/tum_rgbd_desk
 ```
 
-For RealSense or ROS input, edit `configs/realsense.yaml` manually.
+For ScanNet, RealSense, or ROS input, update the corresponding config file
+manually.
 
 ## Run
 
@@ -68,8 +80,8 @@ python -m src.tools.run_slam configs/tum_rgbd.yaml
 ## Acknowledgements
 
 This project builds on [Gaussian-SLAM](https://github.com/VladimirYugay/Gaussian-SLAM)
-and [LoopSplat](https://github.com/GradientSpaces/LoopSplat). Thanks to the authors for
-their open-source work.
+and [LoopSplat](https://github.com/GradientSpaces/LoopSplat). We thank the authors
+for their open-source work.
 
 ## License
 
