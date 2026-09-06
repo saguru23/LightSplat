@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  Junze Bao, Ye Gao, Yiming Huang, Xiaolong Yu<br>
+  Junze Bao, Ye Gao, Yiming Huang, Xiaolong Yu,<br>
   Chen Dong, Qing Gao, Wei Wang, Jinhu Lv
 </p>
 
