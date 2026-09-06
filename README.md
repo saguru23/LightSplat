@@ -107,19 +107,14 @@ python -m src.tools.run_slam configs/tum_rgbd.yaml
 
 ## Acknowledgements
 
-LightSplat is developed on top of [Gaussian-SLAM](https://github.com/VladimirYugay/Gaussian-SLAM)
-and [LoopSplat](https://github.com/GradientSpaces/LoopSplat). We sincerely thank
-the authors for releasing their code and for providing the foundation for 3D
-Gaussian SLAM with loop closure.
+This project builds on the following open-source works:
 
-We also thank the authors of 3D Gaussian Splatting,
-[LightGlue](https://github.com/cvg/LightGlue), and
-[Hierarchical-Localization](https://github.com/cvg/Hierarchical-Localization)
-for their excellent open-source implementations.
+- [Gaussian-SLAM](https://github.com/VladimirYugay/Gaussian-SLAM): the base
+  3D Gaussian SLAM pipeline and reconstruction framework.
+- [LoopSplat](https://github.com/GradientSpaces/LoopSplat): loop closure and
+  submap optimization for globally consistent Gaussian SLAM.
 
 ## License
 
-The LightSplat-specific code is released under the MIT License. Parts of this
-repository are adapted from or depend on upstream projects and follow their
-respective licenses. See `LICENSE` and the corresponding third-party projects
-for details.
+This project is released under the MIT License. You are free to use, modify, and
+distribute the code under the terms described in `LICENSE`.
