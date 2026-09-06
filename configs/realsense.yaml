@@ -78,4 +78,4 @@ light:
   min_keyframe_dist: 0.08
   min_keyframe_angle: 10.0
   sliding_window: 10
-  registration_mode: "fast"  # fast, normal
+  registration_mode: "fast"  # normal, fast, fastest

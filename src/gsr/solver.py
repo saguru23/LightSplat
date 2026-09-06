@@ -71,7 +71,7 @@ def viewpoint_localizer(viewpoint, gaussians, base_lr: float=1e-3, fast_mode=Fal
     loss_log = []
     opt_iterations = 100
     if (fast_mode): 
-        opt_iterations = 100
+        opt_iterations = 10
     for tracking_itr in range(opt_iterations):
         optimizer.zero_grad()
         render_pkg = render(
@@ -233,7 +233,7 @@ def gaussian_registration_nromal(src_dict, tgt_dict, config: dict, visualize=Fal
     del src_3dgs, src_view_list, tgt_3dgs, tgt_view_list
     return result_dict
 
-def gaussian_registration_fast(src_dict, tgt_dict, config: dict, visualize=False, lg=None):
+def gaussian_registration_fast(src_dict, tgt_dict, config: dict, visualize=False, lg=None, fast_mode=False):
     """_summary_
 
     Args:
@@ -368,7 +368,7 @@ def gaussian_registration_fast(src_dict, tgt_dict, config: dict, visualize=False
         curr_T = viewpoint.get_T.detach()
         new_T = curr_T @ target_to_source
         viewpoint.update_RT(new_T[:3, :3], new_T[:3, 3])
-        converged, pred_tsfm, residual, loss_log = viewpoint_localizer(viewpoint, tgt_3dgs, config["base_lr"], True)
+        converged, pred_tsfm, residual, loss_log = viewpoint_localizer(viewpoint, tgt_3dgs, config["base_lr"], fast_mode)
 
         final_T = viewpoint.get_T.detach()
         init_T_backup = src_original_poses[viewpoint.uid]
@@ -395,7 +395,7 @@ def gaussian_registration_fast(src_dict, tgt_dict, config: dict, visualize=False
             curr_T = viewpoint.get_T.detach()
             new_T = curr_T @ source_to_target
             viewpoint.update_RT(new_T[:3, :3], new_T[:3, 3])
-            converged, pred_tsfm, residual, loss_log = viewpoint_localizer(viewpoint, src_3dgs, config["base_lr"], True)
+            converged, pred_tsfm, residual, loss_log = viewpoint_localizer(viewpoint, src_3dgs, config["base_lr"], fast_mode)
 
             final_T = viewpoint.get_T.detach()
             init_T_backup = tgt_original_poses[viewpoint.uid]
@@ -479,6 +479,7 @@ def gaussian_registration(src_dict, tgt_dict, config: dict, visualize=False, lg=
         return gaussian_registration_nromal(src_dict, tgt_dict, config, visualize)
     elif mode == "fast":
         return gaussian_registration_fast(src_dict, tgt_dict, config, visualize, lg)
+    elif mode == "fastest":
+        return gaussian_registration_fast(src_dict, tgt_dict, config, visualize, lg, True)
     else:
         raise ValueError(f"Unknown registration mode: {mode}")
-
