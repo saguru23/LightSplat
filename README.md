@@ -107,7 +107,7 @@ python -m src.tools.run_slam configs/tum_rgbd.yaml
 
 ## Acknowledgements
 
-This project builds on `Gaussian-SLAM` and `LoopSplat`, we thank the authors for
+This project builds on `Gaussian-SLAM` and `LoopSplat`. We thank the authors for
 their open-source work:
 
 - [Gaussian-SLAM](https://github.com/VladimirYugay/Gaussian-SLAM), which provides
