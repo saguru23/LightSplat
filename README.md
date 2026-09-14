@@ -118,6 +118,17 @@ This project builds on [Gaussian-SLAM](https://github.com/VladimirYugay/Gaussian
 and [LoopSplat](https://github.com/GradientSpaces/LoopSplat). We thank the authors
 for their open-source work.
 
+## Citation
+
+```bibtex
+@article{bao2026lightsplat,
+  title={LightSplat: Real-Time High-Fidelity 3D Gaussian SLAM with Loop Closure},
+  author={Bao, Junze and Gao, Ye and Huang, Yiming and Yu, Xiaolong and Dong, Chen and Gao, Qing and Wang, Wei and L{\"u}, Jinhu},
+  journal={arXiv preprint arXiv:2609.07274},
+  year={2026}
+}
+```
+
 ## License
 
 The LightSplat code in this repository is released under the MIT License. Parts
