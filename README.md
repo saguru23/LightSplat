@@ -13,11 +13,11 @@
 </p>
 
 <p align="center">
-  <a href="#"><strong>Paper</strong></a> |
+  <a href="https://arxiv.org/abs/2609.07274"><strong>Paper</strong></a> |
   <a href="#"><strong>Video</strong></a> coming soon
 </p>
 
-<!-- Replace the placeholder links after the paper/video pages are public. -->
+<!-- Replace the placeholder video link after the video page is public. -->
 
 ## News
 
