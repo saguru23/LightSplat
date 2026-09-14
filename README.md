@@ -13,8 +13,8 @@
 </p>
 
 <p align="center">
-  <a href="https://arxiv.org/abs/2609.07274"><strong>Arxiv</strong></a> |
   <a href="#"><strong>Paper</strong></a> |
+  <a href="https://arxiv.org/abs/2609.07274"><strong>arXiv</strong></a> |
   <a href="#"><strong>Video</strong></a> coming soon
 </p>
 
